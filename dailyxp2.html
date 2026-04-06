@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#8b5cf6">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DailyXP</title>
+
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Orbitron:wght@700&display=swap" rel="stylesheet">
+
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Inter',sans-serif;background:#0f0f0f;color:#fff;overflow-x:hidden;position:relative;}
+  a{color:inherit;text-decoration:none;}
+  button{cursor:pointer;font-family:'Inter',sans-serif;}
+
+  nav{position:sticky;top:0;background:#111;padding:1rem 2rem;display:flex;justify-content:space-between;align-items:center;z-index:100;}
+  nav a{margin:0 1rem;position:relative;}
+  nav a::after{content:'';position:absolute;bottom:-4px;left:0;width:0;height:2px;background:#8b5cf6;transition:0.3s;}
+  nav a:hover::after{width:100%;}
+
+  #hero{height:90vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;position:relative;}
+  #hero h1{font-family:'Orbitron',sans-serif;font-size:3rem;animation:float 3s ease-in-out infinite;}
+  #hero p{margin-top:1rem;font-size:1.2rem;color:#ccc;}
+  #hero button{margin-top:2rem;padding:1rem 2rem;background:#8b5cf6;border:none;border-radius:10px;color:#fff;font-size:1.2rem;transition:0.3s;box-shadow:0 0 10px #8b5cf6;}
+  #hero button:hover{transform:scale(1.1);box-shadow:0 0 20px #8b5cf6;}
+  @keyframes float{0%,100%{transform:translateY(0);}50%{transform:translateY(-15px);}}
+
+  #dashboard{padding:2rem;display:flex;justify-content:space-around;flex-wrap:wrap;background:#111;margin-bottom:2rem;}
+  .stat{text-align:center;margin:1rem;}
+  .stat h2{font-family:'Orbitron',sans-serif;font-size:2rem;}
+  .progress-bar{height:20px;width:300px;background:#222;border-radius:10px;overflow:hidden;margin-top:0.5rem;}
+  .progress-fill{height:100%;background:linear-gradient(90deg,#8b5cf6,#4c1d95);width:0%;transition:0.5s;}
+
+  #tasks{padding:2rem;}
+  .task{background:#1a1a1a;margin:1rem 0;padding:1rem;border-radius:10px;display:flex;justify-content:space-between;align-items:center;transition:0.3s;position:relative;}
+  .task.locked{opacity:0.5;}
+  .task.in-progress{box-shadow:0 0 15px #8b5cf6;}
+  .task.done{opacity:0.7;text-decoration:line-through;}
+  .task button{padding:0.5rem 1rem;border:none;border-radius:8px;background:#8b5cf6;color:#fff;transition:0.3s;box-shadow:0 0 5px #8b5cf6;}
+  .task button:disabled{background:#555;box-shadow:none;cursor:not-allowed;}
+  .xp-float{position:absolute;right:50px;color:#8b5cf6;font-weight:bold;animation:floatXP 2s ease-out forwards;pointer-events:none;}
+  @keyframes floatXP{0%{opacity:1;transform:translateY(0);}100%{opacity:0;transform:translateY(-30px);}}
+
+  #rewards{padding:2rem;text-align:center;}
+  .badge{display:inline-block;margin:1rem;font-size:2rem;padding:1rem;background:#222;border-radius:10px;transition:0.3s;}
+  .badge:hover{box-shadow:0 0 15px #8b5cf6;}
+
+  .star{position:absolute;width:2px;height:2px;background:white;border-radius:50%;animation:twinkle 2s infinite;}
+  @keyframes twinkle{0%,100%{opacity:0.5;}50%{opacity:1;}}
+
+  .confetti{position:fixed;width:10px;height:10px;background:red;top:0;left:50%;opacity:1;pointer-events:none;animation:fall 3s linear forwards;}
+  @keyframes fall{0%{transform:translateY(0) rotate(0deg);}100%{transform:translateY(100vh) rotate(720deg);opacity:0;}}
+
+  .drag-over{border:2px dashed #8b5cf6;}
+</style>
+</head>
+<script>
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js");
+}
+</script>
+
+<body>
+
+<div id="stars"></div>
+
+<nav>
+  <div><strong>DailyXP</strong></div>
+  <div>
+    <a href="#hero">Home</a>
+    <a href="#dashboard">Dashboard</a>
+    <a href="#tasks">Routine</a>
+    <a href="#rewards">Rewards</a>
+  </div>
+</nav>
+
+<section id="hero">
+  <h1>Level Up Your Daily Life</h1>
+  <p>Turn your daily routine into a game</p>
+  <button id="startBtn">Start Now</button>
+</section>
+
+<section id="dashboard">
+  <div class="stat">
+    <h2 id="xpDisplay">0 XP</h2>
+    <p>Experience</p>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+  </div>
+  <div class="stat">
+    <h2 id="levelDisplay">Beginner</h2>
+    <p>Level</p>
+  </div>
+  <div class="stat">
+    <h2 id="streakDisplay">0</h2>
+    <p>Streak</p>
+  </div>
+</section>
+
+<section id="tasks">
+  <h2>Today's Tasks (Drag & Drop to Reorder)</h2>
+  <div id="taskList"></div>
+</section>
+
+<section id="rewards">
+  <h2>Rewards & Badges</h2>
+  <div class="badge">🥉 Bronze</div>
+  <div class="badge">🥈 Silver</div>
+  <div class="badge">🥇 Gold</div>
+  <div class="badge">🏆 Routine Hero</div>
+</section>
+
+<script>
+  // ===== Floating Stars =====
+  const starsContainer = document.getElementById('stars');
+  for(let i=0;i<100;i++){
+    let star=document.createElement('div');
+    star.className='star';
+    star.style.top=Math.random()*100+'%';
+    star.style.left=Math.random()*100+'%';
+    star.style.width=star.style.height=(Math.random()*2+1)+'px';
+    starsContainer.appendChild(star);
+  }
+
+  // ===== Dashboard Variables =====
+  let xp = parseInt(localStorage.getItem('xp')) || 0;
+  let level = parseInt(localStorage.getItem('level')) || 0;
+  let streak = parseInt(localStorage.getItem('streak')) || 0;
+  const levels = ['Beginner','Routine Rookie','Habit Hero','Daily Master','Routine Legend','Ultimate Productivity'];
+  const xpThreshold = [50,100,200,350,550,800];
+  const xpDisplay = document.getElementById('xpDisplay');
+  const levelDisplay = document.getElementById('levelDisplay');
+  const streakDisplay = document.getElementById('streakDisplay');
+  const progressFill = document.getElementById('progressFill');
+
+  function updateDashboard(){
+    xpDisplay.textContent = xp+' XP';
+    levelDisplay.textContent = levels[level];
+    streakDisplay.textContent = streak;
+    let fill = Math.min((xp/xpThreshold[level])*100,100);
+    progressFill.style.width = fill+'%';
+  }
+
+  updateDashboard();
+
+  // ===== Task Data with Weekend =====
+  const taskData = [
+    {day:'weekday',time:'5:00',name:'Wake Up',xp:10,duration:10},
+    {day:'weekday',time:'5:10',name:'Exercise',xp:15,duration:20},
+    {day:'weekday',time:'5:30',name:'Bath',xp:5,duration:20},
+    {day:'weekday',time:'5:50',name:'Breakfast',xp:5,duration:20},
+    {day:'weekday',time:'6:10',name:'Light Reading/Study',xp:15,duration:60},
+    {day:'weekday',time:'7:10',name:'Prepare for School',xp:5,duration:50},
+    {day:'weekday',time:'8:00',name:'School',xp:20,duration:300},
+    {day:'weekday',time:'13:00',name:'Lunch',xp:5,duration:60},
+    {day:'weekday',time:'14:00',name:'Study / Assignments',xp:20,duration:180},
+    {day:'weekday',time:'17:00',name:'Skill Learning',xp:15,duration:90},
+    {day:'weekday',time:'18:30',name:'Dinner',xp:5,duration:30},
+    {day:'weekday',time:'19:00',name:'Free / Relaxation',xp:5,duration:120},
+    {day:'weekday',time:'21:00',name:'Light Review',xp:10,duration:90},
+    {day:'weekday',time:'22:30',name:'Prepare for Bed',xp:5,duration:30},
+    {day:'weekday',time:'23:00',name:'Sleep',xp:0,duration:480},
+
+    {day:'saturday',time:'7:00',name:'Wake Up',xp:5,duration:10},
+    {day:'saturday',time:'7:10',name:'Laundry',xp:10,duration:60},
+    {day:'saturday',time:'8:10',name:'Skill Learning',xp:15,duration:120},
+    {day:'saturday',time:'10:30',name:'Breakfast/Light Meal',xp:5,duration:30},
+    {day:'saturday',time:'11:00',name:'Relaxation',xp:5,duration:120},
+    {day:'saturday',time:'20:00',name:'Evening Reflection',xp:10,duration:60},
+    {day:'saturday',time:'23:00',name:'Sleep',xp:0,duration:480},
+
+    {day:'sunday',time:'7:00',name:'Church / Rest',xp:5,duration:120},
+    {day:'sunday',time:'9:00',name:'Light Study',xp:10,duration:60},
+    {day:'sunday',time:'10:00',name:'Free Time',xp:5,duration:120},
+    {day:'sunday',time:'12:00',name:'Prep for Week',xp:10,duration:60},
+    {day:'sunday',time:'23:00',name:'Sleep',xp:0,duration:480}
+  ];
+
+  const taskList = document.getElementById('taskList');
+
+  function convertTimeToMinutes(timeStr){
+    const [h,m]=timeStr.split(':').map(Number);
+    return h*60+m;
+  }
+
+  function renderTasks(){
+    taskList.innerHTML='';
+    const now=new Date();
+    const currentMinutes=now.getHours()*60+now.getMinutes();
+    const weekday=now.getDay();
+    const todayDay=(weekday===0)?'sunday':(weekday===6)?'saturday':'weekday';
+
+    taskData.filter(t=>t.day===todayDay).forEach((task,index)=>{
+      const taskEl=document.createElement('div');
+      taskEl.className='task';
+      taskEl.setAttribute('draggable',true);
+      const taskMinutes=convertTimeToMinutes(task.time);
+
+      if(localStorage.getItem(todayDay+'task'+index)=='done') taskEl.classList.add('done');
+      else if(currentMinutes<taskMinutes) taskEl.classList.add('locked');
+
+      const taskContent=document.createElement('div');
+      taskContent.innerHTML=`<strong>${task.time} - ${task.name}</strong>`;
+
+      const taskBtn=document.createElement('button');
+      taskBtn.textContent=taskEl.classList.contains('done')?'Done':taskEl.classList.contains('locked')?'Locked':'Start';
+      if(taskEl.classList.contains('done')||taskEl.classList.contains('locked')) taskBtn.disabled=true;
+
+      taskBtn.addEventListener('click',()=>{
+        taskEl.classList.add('in-progress');
+        taskBtn.disabled=true;
+        let seconds=task.duration*60;
+        const timer=setInterval(()=>{
+          seconds--;
+          taskBtn.textContent=`In Progress (${Math.floor(seconds/60)}:${('0'+seconds%60).slice(-2)})`;
+          if(seconds<=0){
+            clearInterval(timer);
+            taskEl.classList.remove('in-progress');
+            taskEl.classList.add('done');
+            taskBtn.textContent='Done';
+            xp+=task.xp;
+            localStorage.setItem('xp',xp);
+            localStorage.setItem(todayDay+'task'+index,'done');
+
+            if(xp>=xpThreshold[level]){
+              xp-=xpThreshold[level];
+              level++;
+              if(level>=levels.length) level=levels.length-1;
+              streak++;
+              localStorage.setItem('level',level);
+              localStorage.setItem('streak',streak);
+              launchConfetti();
+            }
+
+            updateDashboard();
+
+            const xpFloat=document.createElement('div');
+            xpFloat.className='xp-float';
+            xpFloat.textContent='+'+task.xp+' XP';
+            taskEl.appendChild(xpFloat);
+            setTimeout(()=>xpFloat.remove(),2000);
+          }
+        },1000);
+      });
+
+      taskEl.appendChild(taskContent);
+      taskEl.appendChild(taskBtn);
+      taskList.appendChild(taskEl);
+    });
+
+    // ===== Drag & Drop =====
+    let dragSrcEl=null;
+    const tasks=document.querySelectorAll('.task');
+    tasks.forEach(task=>{
+      task.addEventListener('dragstart',(e)=>{
+        dragSrcEl=task;
+        e.dataTransfer.effectAllowed='move';
+      });
+      task.addEventListener('dragover',(e)=>{
+        e.preventDefault();
+        task.classList.add('drag-over');
+      });
+      task.addEventListener('dragleave',()=>task.classList.remove('drag-over'));
+      task.addEventListener('drop',(e)=>{
+        e.stopPropagation();
+        task.classList.remove('drag-over');
+        if(dragSrcEl!==task){
+          if([...taskList.children].indexOf(dragSrcEl)<[...taskList.children].indexOf(task)){
+            taskList.insertBefore(dragSrcEl,task.nextSibling);
+          } else {
+            taskList.insertBefore(dragSrcEl,task);
+          }
+          saveTaskOrder(todayDay);
+        }
+      });
+    });
+  }
+
+  renderTasks();
+
+  document.getElementById('startBtn').addEventListener('click',()=>{
+    document.getElementById('tasks').scrollIntoView({behavior:'smooth'});
+  });
+
+  // ===== Save Task Order =====
+  function saveTaskOrder(day){
+    const order=[...taskList.children].map(t=>t.querySelector('strong').textContent);
+    localStorage.setItem(day+'Order',JSON.stringify(order));
+  }
+
+  function launchConfetti(){
+    for(let i=0;i<100;i++){
+      const conf=document.createElement('div');
+      conf.className='confetti';
+      conf.style.backgroundColor=`hsl(${Math.random()*360},100%,50%)`;
+      conf.style.left=Math.random()*100+'vw';
+      conf.style.animationDuration=2+Math.random()*2+'s';
+      document.body.appendChild(conf);
+      setTimeout(()=>conf.remove(),4000);
+    }
+  }
+</script>
+</body>
+</html>
